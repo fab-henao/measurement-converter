@@ -6,4 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- Initial release
+## [0.0.2] - 2025-06-20
+### Changed
+- Las sugerencias ahora aparecen automáticamente al detectar valores en `px`, sin depender de un carácter disparador.
+- Se reemplaza directamente el valor en `px` por la unidad seleccionada (`rem`, `vw`, `em`), en lugar de solo sugerirla.
+
+## [0.0.1] - 2025-06-19
+### Added
+- Conversión de unidades desde `px` a `rem`, `vw`, `em`.
+- Configuración editable: `rootFontSize`, `viewportWidth` y `decimalPlaces`.
+- Sugerencias activadas manualmente con `>` al final del valor `px`.

@@ -1,69 +1,88 @@
 import * as vscode from "vscode";
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("[px-to-units] EXTENSION ACTIVATED"); // Log inicial crucial
+  console.log("[px-to-units] EXTENSION ACTIVATED");
 
+  // Idiomas en los que se activará el provider
   const LANGUAGES = ["css", "scss", "sass", "less", "postcss"];
   console.log(`Registrando proveedor para idiomas: ${LANGUAGES.join(", ")}`);
 
-  const provider = vscode.languages.registerCompletionItemProvider(
-    LANGUAGES,
-    {
-      provideCompletionItems(
-        document: vscode.TextDocument,
-        position: vscode.Position
-      ) {
-        console.log("Proveedor invocado para:", document.languageId);
+  /**
+   * Utilidad para formatear números con una cantidad fija de decimales sin
+   * producir valores como "0.00" cuando no es necesario.
+   */
+  const formatNumber = (value: number, decimals: number): string => {
+    const fixed = value.toFixed(decimals);
+    return parseFloat(fixed).toString();
+  };
 
-        const line = document.lineAt(position).text;
-        const linePrefix = line.substring(0, position.character);
-        console.log("Línea completa:", line);
-        console.log("Prefijo de línea:", linePrefix);
+  const provider = vscode.languages.registerCompletionItemProvider(LANGUAGES, {
+    provideCompletionItems(
+      document: vscode.TextDocument,
+      position: vscode.Position
+    ) {
+      const line = document.lineAt(position).text;
+      const linePrefix = line.substring(0, position.character);
 
-        // Regex más flexible
-        const regex = /(\d+(?:\.\d+)?)px\b/;
-        const match = linePrefix.match(regex);
+      // Regex para detectar "<numero>px" justo antes del cursor
+      const regex = /(\d+(?:\.\d+)?)px\b/;
+      const match = linePrefix.match(regex);
+      if (!match) {
+        return undefined;
+      }
 
-        if (!match) {
-          console.log("No se encontró valor px en el prefijo");
-          return null;
-        }
+      const pxValue = parseFloat(match[1]);
 
-        console.log("Match encontrado:", match[0]);
-        const pxValue = parseFloat(match[1]);
-        console.log(`Valor px detectado: ${pxValue}`);
+      /**
+       * ⚙️ Configuración del usuario (con valores por defecto)
+       *   - pxToUnits.rootFontSize   -> 16
+       *   - pxToUnits.viewportWidth  -> 1920
+       *   - pxToUnits.decimalPlaces  -> 2
+       */
+      const config = vscode.workspace.getConfiguration("pxToUnits");
+      const rootFontSize = config.get<number>("rootFontSize", 16);
+      const viewportWidth = config.get<number>("viewportWidth", 1920);
+      const decimalPlaces = config.get<number>("decimalPlaces", 2);
 
-        // Obtener configuración
-        const config = vscode.workspace.getConfiguration("pxToUnits");
-        const rootFontSize = config.get<number>("rootFontSize", 16);
-        const viewportWidth = config.get<number>("viewportWidth", 1920);
-        const decimalPlaces = config.get<number>("decimalPlaces", 2);
+      // Cálculos de las unidades
+      const rem = formatNumber(pxValue / rootFontSize, decimalPlaces) + "rem";
+      const vw =
+        formatNumber((pxValue / viewportWidth) * 100, decimalPlaces) + "vw";
+      const em = formatNumber(pxValue / rootFontSize, decimalPlaces) + "em";
 
-        // Calcular unidades
-        const toFixed = (value: number) => value.toFixed(decimalPlaces);
-        const rem = toFixed(pxValue / rootFontSize);
-        const vw = toFixed((pxValue / viewportWidth) * 100);
+      // 📍 Rango a sustituir → desde donde empieza el número+px hasta donde termina
+      const start = new vscode.Position(
+        position.line,
+        linePrefix.lastIndexOf(match[0])
+      );
+      const end = start.translate(0, match[0].length);
+      const range = new vscode.Range(start, end);
 
-        const items = [
-          { label: `${rem}rem`, description: `REM conversión` },
-          { label: `${vw}vw`, description: `VW conversión` },
-          { label: `${rem}em`, description: `EM conversión` },
-        ];
+      /**
+       * Crea un CompletionItem que reemplaza directamente el valor «NNpx» por
+       * la unidad convertida. Se usa un TextEdit para asegurar la sustitución.
+       */
+      const makeItem = (
+        label: string,
+        description: string
+      ): vscode.CompletionItem => {
+        const item = new vscode.CompletionItem(
+          label,
+          vscode.CompletionItemKind.Unit
+        );
+        item.detail = description;
+        item.sortText = "0"; // Todos con la misma prioridad → se muestran tal cual
+        item.textEdit = vscode.TextEdit.replace(range, label);
+        return item;
+      };
 
-        console.log("Generando items de finalización:", items);
-
-        return items.map((item) => {
-          const completionItem = new vscode.CompletionItem(
-            item.label,
-            vscode.CompletionItemKind.Unit
-          );
-          completionItem.detail = item.description;
-          return completionItem;
-        });
-      },
+      return [
+        makeItem(rem, `REM (rootFontSize = ${rootFontSize}px)`),
+        makeItem(vw, `VW  (viewportWidth = ${viewportWidth}px)`),
+        makeItem(em, `EM  (rootFontSize = ${rootFontSize}px)`),
+      ];
     },
-    ">" // Carácter trigger
-  );
+  });
 
   context.subscriptions.push(provider);
   console.log("Proveedor registrado exitosamente");

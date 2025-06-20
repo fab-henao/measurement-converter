@@ -9,7 +9,7 @@
   "license": "LICENSE.txt",
   "displayName": "px-to-units",
   "description": "convert pixels to any css size",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.101.0"
   },
@@ -17,7 +17,10 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onLanguage:css",
+    "onLanguage:scss",
+    "onLanguage:sass",
+    "onLanguage:less"
   ],
   "main": "./dist/extension.js",
   "contributes": {
